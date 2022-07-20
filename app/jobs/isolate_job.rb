@@ -1,3 +1,6 @@
+require 'fileutils'
+require 'find'
+
 class IsolateJob < ApplicationJob
   retry_on RuntimeError, wait: 0.1.seconds, attempts: 100
 
@@ -51,6 +54,13 @@ class IsolateJob < ApplicationJob
 
   private
 
+  def preserve_files(src_dir, dst_dir, default_dir="/task_files/.")
+    # Save the files outside the sandbox
+    FileUtils.cp_r(src_dir, dst_dir)
+    #Copy default task files (overwrite any changes people may have made to the original files)
+    FileUtils.cp_r(default_dir, dst_dir)
+  end
+
   def initialize_workdir
     @box_id = submission.id%2147483647
     @cgroups = (!submission.enable_per_process_and_thread_time_limit || !submission.enable_per_process_and_thread_memory_limit) ? "--cg" : ""
@@ -70,6 +80,9 @@ class IsolateJob < ApplicationJob
 
     File.open(source_file, "wb") { |f| f.write(submission.source_code) } unless submission.is_project
     File.open(stdin_file, "wb") { |f| f.write(submission.stdin) }
+    # * this code copies the task files to the sandbox environment!
+    preserve_files("/task_files_run/.", boxdir + "/task_files")
+    preserve_files("/tpm2/wolfTPM/.", boxdir + "/wolfTPM")
 
     extract_archive
   end
@@ -142,9 +155,11 @@ class IsolateJob < ApplicationJob
     #{submission.enable_per_process_and_thread_memory_limit ? "-m " : "--cg-mem="}#{Config::MAX_MEMORY_LIMIT} \
     -f #{Config::MAX_MAX_FILE_SIZE} \
     -E HOME=/tmp \
-    -E PATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" \
+    -E PATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/go/bin\" \
     -E LANG -E LANGUAGE -E LC_ALL -E JUDGE0_HOMEPAGE -E JUDGE0_SOURCE_CODE -E JUDGE0_MAINTAINER -E JUDGE0_VERSION \
     -d /etc:noexec \
+    --dir=/go=/root/go/ \
+    -E GOPATH=/go/ \
     --run \
     -- /bin/bash compile > #{compile_output_file} \
     "
@@ -214,7 +229,7 @@ class IsolateJob < ApplicationJob
     #{submission.enable_per_process_and_thread_memory_limit ? "-m " : "--cg-mem="}#{submission.memory_limit} \
     -f #{submission.max_file_size} \
     -E HOME=/tmp \
-    -E PATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\" \
+    -E PATH=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/go/bin\" \
     -E LANG -E LANGUAGE -E LC_ALL -E JUDGE0_HOMEPAGE -E JUDGE0_SOURCE_CODE -E JUDGE0_MAINTAINER -E JUDGE0_VERSION \
     -d /etc:noexec \
     --run \
@@ -272,6 +287,7 @@ class IsolateJob < ApplicationJob
   end
 
   def cleanup(raise_exception = true)
+    preserve_files(boxdir + "/task_files/.", "/task_files_run")
     fix_permissions
     `sudo rm -rf #{boxdir}/* #{tmpdir}/*`
     [stdin_file, stdout_file, stderr_file, metadata_file].each do |f|

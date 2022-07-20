@@ -356,5 +356,29 @@
     id: 89,
     name: "Multi-file program",
     is_archived: false,
-  }
+  },
+  {
+    id: 90,
+    name: "WolfTPM",
+    is_archived: false,
+    source_file: "main.c",
+    compile_cmd: "/usr/local/gcc-9.2.0/bin/gcc -lwolftpm -lwolfssl %s main.c",
+    run_cmd: "./a.out"
+  },
+  {
+    id: 91,
+    name: "tpm2-tss",
+    is_archived: false,
+    source_file: "main.c",
+    compile_cmd: "/usr/local/gcc-9.2.0/bin/gcc -ltss2-esys -ltss2-tcti-device %s main.c",
+    run_cmd: "./a.out"
+  },
+  {
+    id: 92,
+    name: "ibmtss",
+    is_archived: false,
+    source_file: "main.c",
+    compile_cmd: "/usr/local/gcc-9.2.0/bin/gcc -libmtss -DTPM_POSIX %s main.c",
+    run_cmd: "./a.out"
+  },
 ]

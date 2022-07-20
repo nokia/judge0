@@ -41,6 +41,7 @@
 #  updated_at                                 :datetime
 #  queue_host                                 :string
 #  execution_host                             :string
+#  task                                       :string
 #
 
 class Submission < ApplicationRecord
@@ -75,6 +76,7 @@ class Submission < ApplicationRecord
   validate :language_existence, :compiler_options_allowed,
            :command_line_arguments_allowed, :callbacks_allowed,
            :additional_files_allowed, :network_allowed
+  validates :task, presence: true
 
   before_create :generate_token
   before_validation :set_defaults
@@ -257,5 +259,6 @@ class Submission < ApplicationRecord
       self.enable_network,
       Config::ENABLE_NETWORK
     )
+    self.task ||= "notask"
   end
 end
